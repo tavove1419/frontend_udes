@@ -54,7 +54,14 @@
                       >
                         <q-tooltip>Revisar inscripción</q-tooltip>
                       </q-btn>
-                      <q-btn class="q-ml-sm" dense :disable="props.row.status !== 'FORM'" round icon="edit_note" color="primary" size="sm" @click="completeApplicants(props.row)"><q-tooltip>Finalizar inscripción</q-tooltip></q-btn>
+                      <q-btn class="q-ml-sm" dense :disable="!(props.row.status === 'CORR' && role === 'MEI')"
+                        round icon="edit_note" color="orange" size="sm"
+                        @click="abrirEdicion(props.row)"><q-tooltip>Corregir inscripción</q-tooltip>
+                      </q-btn>
+                      <q-btn class="q-ml-sm" dense :disable="props.row.status !== 'FORM'"
+                        round icon="description" color="primary" size="sm"
+                        @click="completeApplicants(props.row)"><q-tooltip>Finalizar inscripción</q-tooltip>
+                      </q-btn>
                     </div>
                   </q-td>
                 </template>
@@ -87,22 +94,33 @@
       @devolver="onDevolverInscripcion"
       @aceptReject="onResolve"
     />
+
+    <EditApplicantComponent
+      v-model="edicionDialog"
+      :user="selectedUserData"
+      :applicant="selectedApplicant"
+      :inscripcion-data="selectedInscripcionData"
+      @actualizar="onActualizarInscripcion"
+    />
   </q-page>
 </template>
 
 <script setup lang="ts">
 import InscripcionDialog from 'components/InscripcionDialog.vue'
 import RevisionApplicantComponent from 'components/RevisionApplicantComponent.vue'
+import EditApplicantComponent from 'components/EditApplicantComponent.vue';
 import { type QTableProps, useQuasar } from 'quasar';
-import type { GetApplicants, InscripcionData } from 'src/interfaces';
-import { approvedRyc, correctionRyc, getApplicationById, getListApplicant, resolveCpg, saveCompleteForm } from 'src/services';
+import type { GetApplicants, InscripcionData, UserInterface } from 'src/interfaces';
+import { approvedRyc, correctionRyc, getApplicationById, getListApplicant, resolveCpg, saveCompleteForm, updateApplicant } from 'src/services';
 import { onMounted, ref } from 'vue';
 import { useAuthStore } from 'src/stores/auth-store';
-const revisionDialog = ref<boolean>(false)
-const selectedInscripcionData = ref<InscripcionData>()
 
 const store = useAuthStore()
 const $q = useQuasar();
+const revisionDialog = ref<boolean>(false)
+const selectedInscripcionData = ref<InscripcionData | null>(null)
+const selectedUserData = ref<UserInterface>()
+const edicionDialog = ref<boolean>(false);
 const searchText = ref('');
 const isEditing = ref<boolean>(false)
 const loading = ref<boolean>(false)
@@ -177,7 +195,7 @@ function verRevision(applicant: GetApplicants): void {
         lugar_nacimiento: response.data.registration.place_birth,
       },
       docs: {
-        foto: response.data.registration.photo_url,                    // URL o base64
+        foto: response.data.registration.photo_url,
         documento_identidad: response.data.registration.document_url,
         diploma_bachiller: response.data.registration.diploma_url,
       },
@@ -193,6 +211,52 @@ function verRevision(applicant: GetApplicants): void {
   }).finally(() => $q.loading.hide())
 
 
+}
+
+async function abrirEdicion(applicant: GetApplicants): Promise<void> {
+  await cargarInscripcion(applicant)
+  edicionDialog.value = true;
+}
+
+function cargarInscripcion(applicant: GetApplicants): Promise<void> {
+  selectedApplicant.value = applicant;
+  $q.loading.show({ message: 'Cargando información...' });
+  return getApplicationById(applicant.id)
+    .then((response) => {
+      selectedUserData.value = {
+        applicant_type: response.data.applicant_type,
+        document_number: response.data.user.document_number,
+        document_type: response.data.user.document_type,
+        email: response.data.user.email,
+        gender: response.data.user.gender,
+        name: response.data.user.name,
+        last_name: response.data.user.last_name,
+        phone: response.data.user.phone,
+        program: response.data.program,
+      }
+      selectedInscripcionData.value = {
+        datos: {
+          direccion_residencia: response.data.registration.home_address,
+          estrato: response.data.registration.stratum,
+          fecha_nacimiento: response.data.registration.date_birth,
+          lugar_nacimiento: response.data.registration.place_birth,
+        },
+        docs: {
+          foto: response.data.registration.photo_url,
+          documento_identidad: response.data.registration.document_url,
+          diploma_bachiller: response.data.registration.diploma_url,
+        },
+        encuesta: {
+          canal_informativo: response.data.registration.question_three,
+          medio_enterado: response.data.registration.question_two,
+          motivacion: response.data.registration.question_one,
+        },
+      };
+    })
+    .catch((err) => {
+      notify(err.message ?? 'Error al cargar la inscripción', 'negative', 'warning');
+    })
+    .finally(() => $q.loading.hide());
 }
 
 function onAprobarInscripcion(applicantId: string): void {
@@ -236,6 +300,73 @@ function completeApplicants(applicant: GetApplicants): void {
   }
   selectedApplicant.value = applicant
   inscripcionDialog.value = true
+}
+
+function onActualizarInscripcion(payload: {
+  applicant_id: string;
+  personal: Record<string, string>;
+  datos: Record<string, unknown>;
+  docs: Record<string, File | null>;
+  encuesta: Record<string, string>;
+}): void {
+
+  const formData = new FormData();
+  const user = {
+    first_name: payload.personal.name,
+    last_name: payload.personal.last_name,
+    email: payload.personal.email,
+  };
+
+  const application = {
+    phone: payload.personal.phone,
+    applicant_type: payload.personal.applicant_type,
+  };
+
+  const registration = {
+    gender: payload.personal.gender,
+    document_type: payload.personal.document_type,
+    document_number: payload.personal.document_number,
+    program: payload.personal.program,
+
+    date_birth: payload.datos.fecha_nacimiento,
+    place_birth: payload.datos.lugar_nacimiento,
+    home_address: payload.datos.direccion_residencia,
+    stratum: payload.datos.estrato,
+
+    question_one: payload.encuesta.motivacion,
+    question_two: payload.encuesta.medio_enterado,
+    question_three: payload.encuesta.canal_informativo,
+  };
+
+  formData.append('user', JSON.stringify(user));
+  formData.append('application', JSON.stringify(application));
+  formData.append('registration', JSON.stringify(registration));
+
+  const docsMap: Record<string, string> = {
+    foto: 'photo',
+    documento_identidad: 'document',
+    diploma_bachiller: 'diploma',
+  };
+
+  Object.entries(docsMap).forEach(([frontendKey, backendKey]) => {
+    const file = payload.docs[frontendKey];
+    if (file) {
+      formData.append(backendKey, file);
+    }
+  });
+
+
+  $q.loading.show({ message: 'Actualizando inscripción...' });
+
+  updateApplicant(formData, payload.applicant_id)
+    .then((response) => {
+      notify(response.data.message, 'positive', 'check_circle');
+      getListApplic();
+    })
+    .catch((err) => {
+      notify(err.message ?? 'Error al actualizar la inscripción', 'negative', 'warning');
+    })
+    .finally(() => $q.loading.hide());
 }
 
 function onInscripcionConfirmada(payload: {

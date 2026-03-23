@@ -18,6 +18,10 @@ export function getApplicationById(id: string) {
   return api.get(`applications/${id}`)
 }
 
+export function updateApplicant(data: FormData, id: string) {
+  return api.post(`applications/${id}/update/`, data)
+}
+
 export function approvedRyc(id: string, observation?: string) {
   return api.post(`applications/${id}/approved/`, observation)
 }

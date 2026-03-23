@@ -2,7 +2,6 @@
   <q-dialog v-model="dialogOpen" persistent maximized>
     <q-card class="revision-card">
 
-      <!-- Header -->
       <q-card-section class="bg-deep-purple-8 text-white row items-center q-py-md">
         <q-icon name="fact_check" size="28px" class="q-mr-sm" />
         <div class="text-h6 text-weight-medium">Revisión de Inscripción</div>
@@ -17,7 +16,6 @@
         <q-btn icon="close" flat round dense v-close-popup @click="cerrarDialog" />
       </q-card-section>
 
-      <!-- Info aspirante -->
       <q-card-section class="bg-deep-purple-1 q-py-sm">
         <div class="row items-center q-gutter-sm flex-wrap">
           <q-icon name="person" color="deep-purple-8" />
@@ -33,7 +31,6 @@
 
       <q-separator />
 
-      <!-- Tabs -->
       <q-tabs
         v-model="activeTab"
         dense
@@ -110,7 +107,6 @@
             </q-banner>
           </q-tab-panel>
 
-          <!-- TAB 2: Documentos -->
           <q-tab-panel name="documentos" class="q-pa-lg">
             <div class="text-subtitle1 text-weight-bold text-deep-purple-8 q-mb-md row items-center q-gutter-sm">
               <q-icon name="folder_open" />
@@ -118,7 +114,6 @@
             </div>
 
             <div class="row q-col-gutter-md">
-              <!-- Foto -->
               <div class="col-12 col-md-4">
                 <div class="doc-card q-pa-md rounded-borders text-center" :class="inscripcionData?.docs?.foto ? 'doc-ok' : 'doc-missing'">
                   <div v-if="inscripcionData?.docs?.foto">
@@ -142,7 +137,6 @@
                 </div>
               </div>
 
-              <!-- Documento de identidad -->
               <div class="col-12 col-md-4">
                 <div class="doc-card q-pa-md rounded-borders" :class="inscripcionData?.docs?.documento_identidad ? 'doc-ok' : 'doc-missing'">
                   <div v-if="inscripcionData?.docs?.documento_identidad" class="text-center">
@@ -164,7 +158,6 @@
                 </div>
               </div>
 
-              <!-- Diploma de bachiller -->
               <div class="col-12 col-md-4">
                 <div class="doc-card q-pa-md rounded-borders" :class="inscripcionData?.docs?.diploma_bachiller ? 'doc-ok' : 'doc-missing'">
                   <div v-if="inscripcionData?.docs?.diploma_bachiller" class="text-center">
@@ -193,7 +186,6 @@
             </q-banner>
           </q-tab-panel>
 
-          <!-- TAB 3: Encuesta -->
           <q-tab-panel name="encuesta" class="q-pa-lg">
             <div class="text-subtitle1 text-weight-bold text-deep-purple-8 q-mb-md row items-center q-gutter-sm">
               <q-icon name="poll" />
@@ -256,7 +248,6 @@
 
       <q-separator />
 
-      <!-- Footer acciones -->
       <q-card-actions class="q-pa-md bg-grey-1">
         <div class="row full-width items-center q-gutter-sm">
           <q-btn
@@ -297,7 +288,6 @@
       </q-card-actions>
     </q-card>
 
-    <!-- Visor de documentos (sub-dialog) -->
     <q-dialog v-model="visorDialog" maximized>
       <q-card>
         <q-card-section class="bg-grey-9 text-white row items-center q-py-sm">
@@ -308,12 +298,11 @@
         </q-card-section>
         <q-card-section class="q-pa-none visor-content">
           <img v-if="visorTipo === 'image'" :src="visorSrc" class="visor-img" alt="Documento" />
-          <iframe v-else-if="visorTipo === 'pdf'" :src="visorSrc" class="visor-iframe" />
+
         </q-card-section>
       </q-card>
     </q-dialog>
 
-    <!-- Dialog Devolver -->
     <q-dialog v-model="devolverDialog" persistent>
       <q-card style="min-width: 420px; max-width: 90vw;">
         <q-card-section class="bg-negative text-white row items-center">
@@ -340,11 +329,20 @@
         <q-card-actions class="q-pa-md q-pt-none justify-end">
           <q-btn label="Cancelar" flat color="grey" v-close-popup />
           <q-btn
+            v-if="role === 'CPG'"
+            label="Confirmar rechazo"
+            color="negative"
+            unelevated
+            :disable="!motivoDevolucion.trim()"
+            @click="confirmarReject"
+          />
+          <q-btn
+            v-if="role === 'RYC'"
             label="Confirmar devolución"
             color="negative"
             unelevated
             :disable="!motivoDevolucion.trim()"
-            @click="role === 'RYC' ? confirmarDevolucion : confirmarReject"
+            @click="confirmarDevolucion"
           />
         </q-card-actions>
       </q-card>
@@ -377,13 +375,11 @@ const emit = defineEmits<{
 const $q = useQuasar();
 const activeTab = ref('datos');
 
-// Visor de documentos
 const visorDialog = ref(false);
 const visorSrc = ref('');
 const visorTitulo = ref('');
 const visorTipo = ref<'image' | 'pdf'>('pdf');
 
-// Dialog devolver
 const devolverDialog = ref(false);
 const motivoDevolucion = ref('');
 
@@ -396,7 +392,6 @@ onMounted(() => {
   role.value = store.userInfo?.role
 })
 
-// Labels helpers
 const medioMap: Record<string, string> = {
   visita_colegio: 'Visita al colegio o la Institución',
   recomendacion: 'Recomendación',
@@ -436,6 +431,9 @@ function formatFecha(fecha?: string): string {
 }
 
 function abrirVisor(src: string, titulo: string, tipo: 'image' | 'pdf') {
+  if (tipo === 'pdf') {
+    return window.open(src, '_blank')
+  }
   visorSrc.value = src;
   visorTitulo.value = titulo;
   visorTipo.value = tipo;
@@ -516,7 +514,6 @@ watch(dialogOpen, (val) => {
   overflow-y: auto;
 }
 
-/* Datos */
 .dato-card {
   background: #f8f5ff;
   border: 1px solid #ede7f6;
@@ -537,7 +534,6 @@ watch(dialogOpen, (val) => {
   }
 }
 
-/* Documentos */
 .doc-card {
   border: 2px solid;
   min-height: 160px;
@@ -567,7 +563,6 @@ watch(dialogOpen, (val) => {
   box-shadow: 0 2px 12px rgba(124, 77, 255, 0.25);
 }
 
-/* Encuesta */
 .encuesta-card {
   background: #f8f5ff;
   border-left: 4px solid #7c4dff;
@@ -600,7 +595,6 @@ watch(dialogOpen, (val) => {
   }
 }
 
-/* Visor */
 .visor-content {
   height: calc(100vh - 56px);
 }
